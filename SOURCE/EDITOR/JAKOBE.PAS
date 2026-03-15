@@ -309,6 +309,8 @@ var
   m:          longint;
   start:      byte;
 begin
+  if not vision_is_running then
+    exit;
   percentage := round(cnum / enum * 100 / 2);
   start := xspot;
   dupeit(start, xspot, yspot, #219, Percentage);

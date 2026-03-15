@@ -1387,7 +1387,7 @@ begin
       cback := 0
     else
     if p = backublue then
-      cback := 2
+      cback := 1
     else
     if p = BackUGreen then
       cback := 2
@@ -1432,68 +1432,13 @@ begin
 end; {strip *end*}
 
 function backcolr(back_col: byte): s14;
-var s: s14;
 begin
-
-  {init}
-  s := '';
-
-  {hitler complete!}
-
-  case global_cfor of
-    12: begin {light-red text on back_col background}
-      case back_col of
-        0: s := AbRedonBlack; {black}
-        1: s := AbRedonBlue;  {blue}
-        2: s := AbRedonGreen; {green}
-        3: s := AbRedonCyan;  {cyan}
-        4: s := AbRedonRed;   {red}
-        5: s := AbRedonMagenta; {magenta}
-        6: s := AbRedonBrown; {brown}
-        7: s := AbRedonLtGray;{light-gray}
-      end; {case .end.}
-    end; {light-red *end*}
-    13: begin {light-magenta text on back_col background}
-      case back_col of
-        0: s := AbMagentaonBlack; {black}
-        1: s := AbMagentaonBlue;  {blue}
-        2: s := AbMagentaonGreen; {green}
-        3: s := AbMagentaonCyan;  {cyan}
-        4: s := AbMagentaonRed;   {red}
-        5: s := AbMagentaonMagenta; {magenta}
-        6: s := AbMagentaonBrown; {brown}
-        7: s := AbMagentaonLtGray;{light-gray}
-      end; {case .end.}
-    end; {light-magenta *end*}
-    14: begin {yellow text on back_col background}
-      case back_col of
-        0: s := AYellowonBlack; {black}
-        1: s := AYellowonBlue;  {blue}
-        2: s := AYellowonGreen; {green}
-        3: s := AYellowonCyan;  {cyan}
-        4: s := AYellowonRed;   {red}
-        5: s := AYellowonMagenta; {magenta}
-        6: s := AYellowonBrown; {brown}
-        7: s := AYellowonLtGray;{light-gray}
-      end; {case .end.}
-    end; {yellow *end*}
-    15: begin {white text on back_col background}
-      case back_col of
-        0: s := AWhiteonBlack; {black}
-        1: s := AWhiteonBlue;  {blue}
-        2: s := AWhiteonGreen; {green}
-        3: s := AWhiteonCyan;  {cyan}
-        4: s := AWhiteonRed;   {red}
-        5: s := AWhiteonMagenta; {magenta}
-        6: s := AWhiteonBrown; {brown}
-        7: s := AWhiteonLtGray;{light-gray}
-      end; {case .end.}
-    end; {white *end*}
-  end; {case .end.}
-
-       {return result}
-  backcolr := s;
-
+  { Build ANSI sequence for current foreground + new background }
+  { using the fgCol/bgCol arrays from AnsiColr unit }
+  if (global_cfor <= 15) and (back_col <= 7) then
+    backcolr := aSt + fgCol[global_cfor] + bgCol[back_col] + aEnd
+  else
+    backcolr := '';
 end; {backcolr *end*}
 
 function Uconv; {converts Usurper ANSI codes to real ANSI}

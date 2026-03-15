@@ -213,7 +213,7 @@ procedure ansi_write(ch: char);
 begin;
   case ch of
     #12: clrscr;
-    #09: repeat; Write(' '); until wherex / 8 = wherex div 8;
+    #09: repeat; Write(' '); until (wherex mod 8) = 1;
     #27: begin; escape := True; bbb := True; end;
 
     else begin;
@@ -265,7 +265,7 @@ begin;
   begin;
     case s[a] of
       #12: begin; WriteBuf(); clrscr; end;
-      #09: begin; WriteBuf(); repeat; Write(' '); until wherex / 8 = wherex div 8; end;
+      #09: begin; WriteBuf(); repeat; Write(' '); until (wherex mod 8) = 1; end;
       #27: begin; WriteBuf(); escape := True; bbb := True; end;
 
       else begin;

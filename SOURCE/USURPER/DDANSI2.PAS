@@ -86,12 +86,32 @@ begin;
   end;
 end;
 
+{ Parse a decimal number from string s starting at position cp.
+  Advances cp past all digit characters. Returns -1 if no digits found. }
+function parse_ansi_num(var s: string; var cp: integer): integer;
+var
+  num: integer;
+  found: boolean;
+begin
+  num := 0;
+  found := False;
+  while (cp <= length(s)) and (s[cp] >= '0') and (s[cp] <= '9') do
+  begin
+    num := num * 10 + (Ord(s[cp]) - Ord('0'));
+    found := True;
+    Inc(cp);
+  end;
+  if found then
+    parse_ansi_num := num
+  else
+    parse_ansi_num := -1;
+end;
+
 procedure eval_string(var s: string);
 var
   cp:    integer;
   T:     char;
-  jj, a, ttt, tttt: integer;
-  flag1: boolean;
+  jj, a: integer;
 begin;
   t := s[length(s)];
   cp := 2;
@@ -103,22 +123,15 @@ begin;
       resty := wherey;
     end;
     'm', 'J': begin;
-      repeat;
-        a := -1;
-        val(s[cp], a, tttt);
-        if tttt = 0 then
-        begin;
-          cp := cp + 1;
-          val(s[cp], ttt, tttt);
-          if tttt = 0 then
-          begin;
-            a := a * 10;
-            a := a + ttt;
-          end;
+      while cp < length(s) do
+      begin
+        a := parse_ansi_num(s, cp);
+        if a >= 0 then
           change_color(a);
-        end;
-        cp := cp + 1;
-      until cp >= length(s);
+        { skip non-digit separators (semicolons) }
+        while (cp < length(s)) and ((s[cp] < '0') or (s[cp] > '9')) do
+          Inc(cp);
+      end;
       if norm then
       begin;
         if (fflag = False) and (gflag = False) then
@@ -151,108 +164,37 @@ begin;
       any2 := False;any := False;fflag := False;gflag := False;norm := False;
     end;
     'C': begin;
-      a := 1;
-      val(s[cp], a, tttt);
-      if tttt = 0 then
-      begin;
-        cp := cp + 1;
-        val(s[cp], ttt, tttt);
-        if tttt = 0 then
-        begin;
-          a := a * 10;
-          a := a + ttt;
-        end;
-      end else a := 1;
-      ttt := wherex;
-      if a + ttt <= 80 then
-        gotoxy(a + ttt, wherey);
+      a := parse_ansi_num(s, cp);
+      if a < 1 then a := 1;
+      if wherex + a <= 80 then
+        gotoxy(wherex + a, wherey);
     end;
     'D': begin;
-      a := 1;
-      val(s[cp], a, tttt);
-      if tttt = 0 then
-      begin;
-        cp := cp + 1;
-        val(s[cp], ttt, tttt);
-        if tttt = 0 then
-        begin;
-          a := a * 10;
-          a := a + ttt;
-        end;
-      end else a := 1;
-      ttt := wherex;
-      if ttt - a >= 1 then
-        gotoxy(ttt - a, wherey);
+      a := parse_ansi_num(s, cp);
+      if a < 1 then a := 1;
+      if wherex - a >= 1 then
+        gotoxy(wherex - a, wherey);
     end;
     'A': begin;
-      a := 1;
-      val(s[cp], a, tttt);
-      if tttt = 0 then
-      begin;
-        cp := cp + 1;
-        val(s[cp], ttt, tttt);
-        if tttt = 0 then
-        begin;
-          a := a * 10;
-          a := a + ttt;
-        end;
-      end else a := 1;
-      ttt := wherey;
-      if ttt - a >= 1 then
-        gotoxy(wherex, ttt - a);
+      a := parse_ansi_num(s, cp);
+      if a < 1 then a := 1;
+      if wherey - a >= 1 then
+        gotoxy(wherex, wherey - a);
     end;
     'B': begin;
-      a := 1;
-      val(s[cp], a, tttt);
-      if tttt = 0 then
-      begin;
-        cp := cp + 1;
-        val(s[cp], ttt, tttt);
-        if tttt = 0 then
-        begin;
-          a := a * 10;
-          a := a + ttt;
-        end;
-      end else a := 1;
-      ttt := wherey;
-      if ttt + a <= 25 then
-        gotoxy(wherex, ttt + a);
+      a := parse_ansi_num(s, cp);
+      if a < 1 then a := 1;
+      if wherey + a <= 25 then
+        gotoxy(wherex, wherey + a);
     end;
     'f', 'H': begin;
-      flag1 := False;
-      a := 1;
-      val(s[cp], a, tttt);
-      if tttt = 0 then
-      begin;
-        cp := cp + 1;
-        val(s[cp], ttt, tttt);
-        if tttt = 0 then
-        begin;
-          a := a * 10;
-          a := a + ttt;
-          flag1 := True;
-        end;
-      end else a := 1;
-      jj := a;
-      if flag1 = False then
-        cp := cp + 1;
-      if flag1 = True then
-        cp := cp + 2;
-      if cp < length(s) then
-      begin;
-        a := 1;
-        val(s[cp], a, tttt);
-        if tttt = 0 then
-        begin;
-          cp := cp + 1;
-          val(s[cp], ttt, tttt);
-          if tttt = 0 then
-          begin;
-            a := a * 10;
-            a := a + ttt;
-          end;
-        end else a := 1;
-      end else a := 1;
+      jj := parse_ansi_num(s, cp);
+      if jj < 1 then jj := 1;
+      { skip the semicolon separator }
+      if (cp <= length(s)) and (s[cp] = ';') then
+        Inc(cp);
+      a := parse_ansi_num(s, cp);
+      if a < 1 then a := 1;
       gotoxy(a, jj);
     end;
     else writeln(s);

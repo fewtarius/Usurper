@@ -54,8 +54,12 @@ begin;
   case c of
     00: begin;any := True;blink := False;high := False;norm := True;end;
     01: begin;high := True;end;
-    02: begin;clrscr;any := True;end;
+    02: begin;high := False;any := True;end; { dim/faint - remove bold }
+    03: begin;end; { italic - no console support, ignore }
+    04: begin;end; { underline - no console support, ignore }
     05: begin;blink := True;any := True;end;
+    07: begin;any := True;end; { reverse video - handled by textattr swap below }
+    08: begin;end; { concealed/hidden - no console support, ignore }
   end;
   if (c > 29) and (c < 38) then
   begin;

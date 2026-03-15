@@ -58,7 +58,15 @@ begin;
     03: begin;end; { italic - no console support, ignore }
     04: begin;end; { underline - no console support, ignore }
     05: begin;blink := True;any := True;end;
-    07: begin;any := True;end; { reverse video - handled by textattr swap below }
+    07: begin; { reverse video - swap foreground and background via TextAttr }
+      any := True;
+      any2 := True;
+      fflag := True;
+      gflag := True;
+      { TextAttr low nibble = foreground, high nibble = background }
+      textcolor((TextAttr shr 4) and $07);
+      textbackground(TextAttr and $0F);
+    end;
     08: begin;end; { concealed/hidden - no console support, ignore }
   end;
   if (c > 29) and (c < 38) then

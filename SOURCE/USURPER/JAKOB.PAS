@@ -501,8 +501,8 @@ procedure D; {displays the string TEXT to the screen. this routine
               accepts usurpers own ANSI control codes.}
 var i: word;
   fore_col, back_col: byte;
-
   p:   string[3];
+  buf: string;
 begin
 
   if (global_cfor <> col) and (global_ansi) then
@@ -528,11 +528,22 @@ begin
     exit;
   end;
 
+  buf := '';
   i := 1;
   back_col := global_cback;
   repeat
     case Text[i] of
       acc: begin
+
+        { Flush any buffered plain text before color change }
+        if buf <> '' then
+        begin
+          if global_carrierdropped = False then
+            ssWrite(buf)
+          else
+            Write(buf);
+          buf := '';
+        end;
 
         {get first/next three characters from string}
         p := Text[i] + Text[i + 1] + Text[i + 2];
@@ -641,18 +652,22 @@ begin
 
       end;
       else begin
-        if global_carrierdropped = False then
-        begin
-          ssWrite(Text[I]);
-        end else
-        begin
-          Write(Text[i]);
-        end;
+        { Buffer plain characters instead of sending one at a time }
+        buf := buf + Text[i];
       end;
     end; {case .end.}
     Inc(i);
 
   until I > Length(Text);
+
+  { Flush remaining buffered text }
+  if buf <> '' then
+  begin
+    if global_carrierdropped = False then
+      ssWrite(buf)
+    else
+      Write(buf);
+  end;
 
   if carriage_return then
   begin

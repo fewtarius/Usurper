@@ -163,6 +163,41 @@ var
   exitsave:       pointer;
   tcolor, bcolor: integer;
   firsttime:      boolean;
+  ansi_seq_state: byte;  { 0=normal, 1=got ESC, 2=in CSI params }
+
+{ Count visible characters in a string, skipping ANSI escape sequences }
+function ansi_vis_length(s: string): integer;
+var
+  i, vis: integer;
+  state:  byte;  { 0=normal, 1=got ESC, 2=in CSI sequence }
+begin
+  vis := 0;
+  state := 0;
+  for i := 1 to length(s) do
+  begin
+    case state of
+      0: begin { normal text }
+        if s[i] = #27 then
+          state := 1   { ESC seen }
+        else
+          Inc(vis);
+      end;
+      1: begin { after ESC }
+        if s[i] = '[' then
+          state := 2   { CSI sequence }
+        else
+          state := 0;  { not CSI, back to normal }
+      end;
+      2: begin { inside CSI parameters }
+        if (s[i] >= 'A') and (s[i] <= 'Z') then
+          state := 0   { final byte, sequence done }
+        else if (s[i] >= 'a') and (s[i] <= 'z') then
+          state := 0;  { final byte, sequence done }
+      end;
+    end;
+  end;
+  ansi_vis_length := vis;
+end;
 
 {$IFDEF MSDOS}
 procedure Dos_Sleep;
@@ -819,7 +854,26 @@ begin;
     AsyncSendChar(ch);
   if NoLocal then
   begin
-    gotoxy(Wherex + 1, Wherey);
+    { Track ANSI escape sequences - only advance cursor for visible chars }
+    case ansi_seq_state of
+      0: begin { normal text }
+        if ch = #27 then
+          ansi_seq_state := 1
+        else
+          gotoxy(Wherex + 1, Wherey);
+      end;
+      1: begin { after ESC }
+        if ch = '[' then
+          ansi_seq_state := 2
+        else
+          ansi_seq_state := 0;
+      end;
+      2: begin { inside CSI parameters }
+        if ((ch >= 'A') and (ch <= 'Z')) or
+           ((ch >= 'a') and (ch <= 'z')) then
+          ansi_seq_state := 0;
+      end;
+    end;
     exit;
   end;
   if ansion then
@@ -836,7 +890,7 @@ begin;
     sendtext(s);
   if NoLocal then
   begin
-    GotoXY(wherex + length(s), wherey);
+    GotoXY(wherex + ansi_vis_length(s), wherey);
     exit;
   end;
 
@@ -854,7 +908,7 @@ begin;
     sendtext(s + #13 + #10);
   if NoLocal then
   begin
-    GotoXY(wherex + length(s), wherey);
+    GotoXY(wherex + ansi_vis_length(s), wherey);
     writeln;
     exit;
   end;
@@ -883,7 +937,7 @@ begin
     sendtext(s);
   if NoLocal then
   begin
-    GotoXY(wherex + length(s), wherey);
+    GotoXY(wherex + ansi_vis_length(s), wherey);
     exit;
   end;
 

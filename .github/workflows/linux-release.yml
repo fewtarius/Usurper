@@ -1,0 +1,172 @@
+name: Linux Release (RPM + tar.gz)
+
+on:
+  push:
+    tags:
+      - "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].[0-9]*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. 20260315.1)"
+        required: true
+
+jobs:
+  build-binaries:
+    name: Build x86_64-linux binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build x86_64-linux binaries
+        shell: pwsh
+        run: |
+          # Only build the linux x86_64 target
+          $null = New-Item -ItemType Directory -Path "bin\x86_64-linux" -Force
+          $null = New-Item -ItemType Directory -Path "obj\x86_64-linux" -Force
+
+          $FpcupDir = "C:\fpcupdeluxe"
+          if (!(Test-Path -Path $FpcupDir)) {
+            Write-Host "Downloading fpcupdeluxe..."
+            Invoke-WebRequest -Uri "https://github.com/rickparrish/fpcupdeluxe/releases/download/Usurper-3.2.2/fpcupdeluxe.zip" -OutFile "fpcupdeluxe.zip"
+            Expand-Archive "fpcupdeluxe.zip" -DestinationPath $FpcupDir
+          }
+
+          $fpc = "C:\fpcupdeluxe\fpc\bin\x86_64-win64\fpc.exe"
+          $commonArgs = "-B -Tlinux -Px86_64 -Mtp -Scgi -CX -O3 -Xs -XX -FiSOURCE\COMMON -Fiobj\x86_64-linux -FuSOURCE\COMMON -FUobj\x86_64-linux\ -FEbin\x86_64-linux\"
+
+          Write-Host "Building USURPER..."
+          $p = Start-Process -NoNewWindow -PassThru -Wait -FilePath $fpc `
+            -ArgumentList "$commonArgs -FiSOURCE\USURPER -obin\x86_64-linux\USURPER SOURCE\USURPER\USURPER.PAS"
+          if ($p.ExitCode -ne 0) { throw "USURPER build failed (exit $($p.ExitCode))" }
+
+          Write-Host "Building EDITOR..."
+          $p = Start-Process -NoNewWindow -PassThru -Wait -FilePath $fpc `
+            -ArgumentList "$commonArgs -FiSOURCE\EDITOR -obin\x86_64-linux\EDITOR SOURCE\EDITOR\EDITOR.PAS"
+          if ($p.ExitCode -ne 0) { throw "EDITOR build failed (exit $($p.ExitCode))" }
+
+          Write-Host "Binaries built successfully"
+          Get-Item bin\x86_64-linux\USURPER, bin\x86_64-linux\EDITOR | Select-Object Name, Length
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-linux-binaries
+          path: |
+            bin/x86_64-linux/USURPER
+            bin/x86_64-linux/EDITOR
+
+  package:
+    name: Package RPM and tar.gz
+    runs-on: ubuntu-latest
+    needs: build-binaries
+    container:
+      image: rockylinux:9
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          dnf install -y rpm-build rpmdevtools
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: x86_64-linux-binaries
+          path: binaries/
+
+      - name: Make binaries executable
+        run: chmod 0755 binaries/USURPER binaries/EDITOR
+
+      - name: Parse version from tag
+        id: version
+        run: |
+          # Get tag from push event or workflow_dispatch input
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Split YYYYMMDD.N into version and release
+          PKG_VERSION="${TAG%%.*}"
+          PKG_RELEASE="${TAG#*.}"
+          echo "pkg_version=$PKG_VERSION" >> $GITHUB_OUTPUT
+          echo "pkg_release=$PKG_RELEASE" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG  =>  Version: $PKG_VERSION  Release: $PKG_RELEASE"
+
+      - name: Set up RPM build tree
+        run: rpmdev-setuptree
+
+      - name: Populate RPM SOURCES
+        run: |
+          SOURCES="$HOME/rpmbuild/SOURCES"
+
+          # Copy binaries
+          cp binaries/USURPER "$SOURCES/USURPER"
+          cp binaries/EDITOR  "$SOURCES/EDITOR"
+
+          # Copy RELEASE tree
+          cp -r RELEASE "$SOURCES/RELEASE"
+
+      - name: Build RPM
+        run: |
+          rpmbuild -bb packaging/usurper.spec \
+            --define "pkg_version ${{ steps.version.outputs.pkg_version }}" \
+            --define "pkg_release ${{ steps.version.outputs.pkg_release }}"
+
+      - name: Locate RPM
+        id: find_rpm
+        run: |
+          RPM=$(find $HOME/rpmbuild/RPMS -name "*.rpm" | head -1)
+          echo "rpm_path=$RPM" >> $GITHUB_OUTPUT
+          echo "rpm_name=$(basename $RPM)" >> $GITHUB_OUTPUT
+          echo "Built RPM: $RPM"
+          rpm -qip "$RPM"
+
+      - name: Build tar.gz
+        id: tarball
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          TARNAME="usurper-${TAG}-x86_64-linux.tar.gz"
+
+          # Stage into named directory
+          mkdir -p "usurper-${TAG}"
+          cp -r RELEASE/. "usurper-${TAG}/"
+          cp binaries/USURPER "usurper-${TAG}/USURPER"
+          cp binaries/EDITOR  "usurper-${TAG}/EDITOR"
+
+          tar czf "$TARNAME" "usurper-${TAG}/"
+          echo "tarball_name=$TARNAME" >> $GITHUB_OUTPUT
+          echo "Built tarball: $TARNAME ($(du -sh $TARNAME | cut -f1))"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Usurper ${{ steps.version.outputs.tag }}"
+          prerelease: false
+          files: |
+            ${{ steps.find_rpm.outputs.rpm_path }}
+            ${{ steps.tarball.outputs.tarball_name }}
+          body: |
+            ## Usurper ${{ steps.version.outputs.tag }}
+
+            Rocky Linux 9 / x86_64 release.
+
+            ### Installation
+
+            **RPM (Rocky Linux 9 / RHEL 9 / AlmaLinux 9):**
+            ```
+            rpm -ivh ${{ steps.find_rpm.outputs.rpm_name }}
+            ```
+            Game installs to `/usr/share/games/usurper/`
+
+            **tar.gz (any Linux x86_64):**
+            Extract and run `USURPER` from the extracted directory.
+
+            ### First Run
+            Run `EDITOR` and click "Reset Game" to initialize game data files,
+            then configure via the Configuration menu.
+
+            See `DOCS/SYSOP.TXT` for full installation instructions.

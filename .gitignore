@@ -3,3 +3,7 @@ bin/
 obj/
 RELEASE/EDITOR.EXE
 RELEASE/USURPER.EXE
+
+# CLIO (managed automatically)
+.clio/*
+!.clio/instructions.md
